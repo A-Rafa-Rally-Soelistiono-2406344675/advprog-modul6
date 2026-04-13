@@ -2,48 +2,24 @@
 
 ## Commit 1 Reflection Notes
 
-Program ini bekerja sebagai single-threaded web server sederhana dengan `TcpListener` yang bind ke `127.0.0.1:7878`. Setiap koneksi masuk diproses satu per satu pada thread utama, sehingga server belum bisa menangani banyak request secara paralel.
-
-Fungsi `handle_connection` menerima `TcpStream`, lalu membungkusnya dengan `BufReader` agar request dari browser dapat dibaca baris demi baris. Hanya bagian request header yang dikumpulkan, karena pembacaan berhenti saat menemukan baris kosong yang menandai akhir header HTTP.
-
-Saat browser mengakses server, program akan mencetak isi request ke terminal. Dari output tersebut bisa dilihat method HTTP, path, host, user-agent, dan header lain yang dikirim browser, sehingga tahap ini membantu memahami pola komunikasi dasar antara browser dan web server.
+Pada commit ini saya memahami dasar cara kerja web server sederhana di Rust, yaitu dengan `TcpListener` yang mendengarkan koneksi pada `127.0.0.1:7878` dan memproses setiap koneksi secara berurutan dalam satu thread. Saya juga melihat bahwa `handle_connection` menggunakan `BufReader` untuk membaca request browser baris demi baris sampai header selesai, lalu menampilkan isi request ke terminal. Dari tahap ini terlihat jelas bahwa browser mengirim request HTTP lengkap berisi method, path, host, dan header lain, sehingga saya jadi lebih paham alur komunikasi dasar antara client dan server.
 
 ## Commit 2 Reflection Notes
 
-Pada tahap ini, fungsi `handle_connection` tidak hanya membaca request, tetapi juga mengirimkan HTTP response yang valid. Response terdiri dari status line `HTTP/1.1 200 OK`, header `Content-Length`, baris kosong sebagai pemisah header dan body, lalu isi file HTML yang dibaca dari `hello.html`.
-
-Saya memahami bahwa browser membutuhkan format response HTTP yang benar agar bisa merender halaman. Penambahan `Content-Length` penting karena memberi tahu browser ukuran body yang diterima, sehingga browser bisa mengetahui kapan respons selesai dibaca.
-
-Dengan memisahkan konten HTML ke file `hello.html`, server menjadi lebih mudah dipahami dan dikembangkan. Kode Rust menangani komunikasi jaringan, sedangkan isi halaman dikelola terpisah dalam file HTML sederhana yang dapat diubah tanpa mengubah struktur dasar server.
+Pada commit ini saya memahami bahwa browser tidak cukup hanya menerima koneksi, tetapi juga harus mendapat HTTP response yang valid agar bisa menampilkan halaman. Karena itu `handle_connection` saya ubah agar mengirim status line `HTTP/1.1 200 OK`, header `Content-Length`, dan isi file `hello.html` sebagai body response. Dari sini saya belajar bahwa `Content-Length` penting untuk memberi tahu ukuran data yang dikirim, dan pemisahan konten HTML ke file terpisah membuat kode server lebih rapi karena logika jaringan tetap berada di Rust sementara isi halaman dikelola di file HTML.
 
 ## Commit 3 Reflection Notes
 
-Pada tahap ini server tidak lagi selalu mengirim `hello.html`. Program sekarang membaca request line pertama, lalu memvalidasi apakah request tersebut adalah `GET / HTTP/1.1`. Jika cocok, server mengirim halaman utama dengan status `200 OK`; jika tidak, server mengirim `404.html` dengan status `404 NOT FOUND`.
-
-Refactoring dilakukan dengan memisahkan hasil validasi request menjadi dua bagian, yaitu `status_line` dan `filename`. Pemisahan ini dibutuhkan agar keputusan logika tidak bercampur dengan proses membangun response. Dengan begitu, alur program menjadi lebih jelas: pertama tentukan request valid atau tidak, lalu baca file yang sesuai, setelah itu bentuk HTTP response dari data tersebut.
-
-Pendekatan ini memudahkan pengembangan fitur berikutnya karena setiap cabang request cukup menentukan pasangan status dan file yang akan dikirim. Struktur ini juga lebih mudah diperluas dibanding menulis ulang seluruh response string untuk setiap kondisi.
+Pada commit ini saya memahami bagaimana server mulai memvalidasi request dan merespons secara selektif, bukan selalu mengirim `hello.html` untuk semua path. Program sekarang membaca request line pertama, lalu membedakan antara `GET / HTTP/1.1` yang harus dibalas dengan `200 OK` dan path lain yang harus dibalas dengan `404 NOT FOUND` beserta `404.html`. Saya juga belajar bahwa refactoring dengan memisahkan `status_line` dan `filename` membuat kode lebih mudah dibaca dan dikembangkan, karena logika penentuan response dipisahkan dari proses membangun response HTTP.
 
 ## Commit 4 Reflection Notes
 
-Pada tahap ini ditambahkan rute `GET /sleep HTTP/1.1` yang secara sengaja menunda respons selama 10 detik sebelum mengirim `hello.html`. Tujuannya bukan untuk menambah fitur baru bagi pengguna, tetapi untuk mensimulasikan request lambat agar keterbatasan server single-threaded terlihat jelas.
-
-Ketika satu browser membuka `/sleep`, thread utama akan berhenti di `thread::sleep` dan tidak bisa memproses koneksi lain selama waktu tunggu itu. Akibatnya, request ke `/` dari jendela browser lain juga ikut tertahan walaupun halaman tersebut seharusnya cepat. Ini menunjukkan bahwa pada server single-threaded, satu request lambat dapat memblokir seluruh server.
-
-Dari simulasi ini saya memahami alasan perlunya concurrency pada web server. Jika banyak pengguna mengakses server bersamaan, pendekatan satu thread untuk semua koneksi akan membuat respons terasa lambat dan tidak skalabel, sehingga tahap berikutnya perlu memindahkan penanganan request ke banyak thread atau thread pool.
+Pada commit ini saya memahami kelemahan utama server single-threaded dengan menambahkan route `/sleep` yang sengaja menunda response selama 10 detik. Saat satu request masuk ke `/sleep`, thread utama berhenti di `thread::sleep`, sehingga request lain seperti `/` juga ikut menunggu walaupun sebenarnya ringan. Dari simulasi ini terlihat jelas bahwa satu request lambat dapat memblokir seluruh server, dan hal itu menjadi alasan utama kenapa web server perlu concurrency agar tetap responsif saat menerima banyak koneksi secara bersamaan.
 
 ## Commit 5 Reflection Notes
 
-Pada tahap ini server diubah dari single-threaded menjadi multithreaded dengan `ThreadPool`. Di `main`, koneksi yang masuk tidak lagi langsung diproses oleh thread utama, tetapi dibungkus sebagai closure dan dikirim ke pool melalui `pool.execute`. Dengan begitu, thread utama bisa tetap menerima koneksi baru sementara worker thread menangani request secara paralel.
-
-`ThreadPool` bekerja dengan membuat sejumlah worker tetap, dalam tugas ini sebanyak 4 thread. Pool memiliki channel untuk mengirim `Job`, yaitu closure bertipe `Box<dyn FnOnce() + Send + 'static>`. Setiap worker berbagi receiver yang sama menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, lalu terus menunggu job baru dalam loop, mengambil satu job, dan mengeksekusinya.
-
-Keuntungan pendekatan ini dibanding membuat thread baru tanpa batas untuk setiap request adalah jumlah thread tetap terkendali. Request lambat seperti `/sleep` tidak lagi memblokir semua request lain selama masih ada worker yang tersedia, sehingga throughput server meningkat. Refactoring ini juga memisahkan logika concurrency ke `src/lib.rs`, sehingga `main.rs` tetap fokus pada logika web server.
+Pada commit ini saya memahami bagaimana `ThreadPool` membuat server menjadi multithreaded tanpa harus membuat thread baru untuk setiap request. Di `main`, koneksi yang datang dikirim ke pool melalui `pool.execute`, lalu worker thread yang tersedia akan menjalankan `handle_connection` secara paralel. `ThreadPool` sendiri bekerja dengan channel untuk mengirim job dan beberapa worker yang berbagi receiver menggunakan `Arc<Mutex<_>>`, sehingga request lambat seperti `/sleep` tidak lagi memblokir semua request lain. Menurut saya ini lebih efisien dan lebih rapi karena logika concurrency dipisahkan ke `src/lib.rs`, sementara `main.rs` tetap fokus pada alur server.
 
 ## Commit Bonus Reflection Notes
 
-Pada bonus ini saya menambahkan fungsi `build` sebagai pengganti `new` untuk membuat `ThreadPool`. Perbedaan utamanya adalah `new` biasanya mengandalkan `assert!` dan akan panic jika ukuran pool tidak valid, sedangkan `build` mengembalikan `Result<ThreadPool, ThreadPoolBuildError>`, sehingga kesalahan dapat ditangani secara eksplisit oleh pemanggil.
-
-Saya mengganti pemakaian di `main` menjadi `ThreadPool::build(4).expect(...)`. Dengan pendekatan ini, validasi konfigurasi dipindahkan ke tahap konstruksi yang lebih aman dan lebih idiomatis, karena caller bisa memilih apakah ingin menampilkan pesan error, fallback ke nilai lain, atau menghentikan program dengan alasan yang jelas.
-
-Dibanding `new`, fungsi `build` lebih fleksibel untuk pengembangan selanjutnya. Jika nanti inisialisasi `ThreadPool` membutuhkan validasi tambahan, misalnya batas maksimum ukuran pool atau konfigurasi dari file/env, pola `Result` akan lebih mudah diperluas tanpa memaksa panic. Jadi, `build` lebih cocok untuk API yang ingin robust, sedangkan `new` lebih cocok bila benar-benar ingin konstruktor sederhana yang mengasumsikan input selalu valid.
+Pada bonus ini saya memahami bahwa fungsi `build` lebih baik digunakan sebagai pengganti `new` untuk membuat `ThreadPool`, karena `build` mengembalikan `Result` dan membuat validasi ukuran pool menjadi lebih aman serta eksplisit. Berbeda dengan `new` yang biasanya memakai `assert!` dan langsung panic saat input tidak valid, `build` memberi kesempatan kepada pemanggil untuk menangani error dengan cara yang lebih jelas, misalnya lewat `expect`, fallback, atau mekanisme lain. Menurut saya pendekatan ini lebih baik untuk pengembangan jangka panjang karena API menjadi lebih robust dan lebih mudah diperluas jika nanti ada validasi tambahan.
