@@ -15,3 +15,11 @@ Pada tahap ini, fungsi `handle_connection` tidak hanya membaca request, tetapi j
 Saya memahami bahwa browser membutuhkan format response HTTP yang benar agar bisa merender halaman. Penambahan `Content-Length` penting karena memberi tahu browser ukuran body yang diterima, sehingga browser bisa mengetahui kapan respons selesai dibaca.
 
 Dengan memisahkan konten HTML ke file `hello.html`, server menjadi lebih mudah dipahami dan dikembangkan. Kode Rust menangani komunikasi jaringan, sedangkan isi halaman dikelola terpisah dalam file HTML sederhana yang dapat diubah tanpa mengubah struktur dasar server.
+
+## Commit 3 Reflection Notes
+
+Pada tahap ini server tidak lagi selalu mengirim `hello.html`. Program sekarang membaca request line pertama, lalu memvalidasi apakah request tersebut adalah `GET / HTTP/1.1`. Jika cocok, server mengirim halaman utama dengan status `200 OK`; jika tidak, server mengirim `404.html` dengan status `404 NOT FOUND`.
+
+Refactoring dilakukan dengan memisahkan hasil validasi request menjadi dua bagian, yaitu `status_line` dan `filename`. Pemisahan ini dibutuhkan agar keputusan logika tidak bercampur dengan proses membangun response. Dengan begitu, alur program menjadi lebih jelas: pertama tentukan request valid atau tidak, lalu baca file yang sesuai, setelah itu bentuk HTTP response dari data tersebut.
+
+Pendekatan ini memudahkan pengembangan fitur berikutnya karena setiap cabang request cukup menentukan pasangan status dan file yang akan dikirim. Struktur ini juga lebih mudah diperluas dibanding menulis ulang seluruh response string untuk setiap kondisi.
