@@ -39,3 +39,11 @@ Pada tahap ini server diubah dari single-threaded menjadi multithreaded dengan `
 `ThreadPool` bekerja dengan membuat sejumlah worker tetap, dalam tugas ini sebanyak 4 thread. Pool memiliki channel untuk mengirim `Job`, yaitu closure bertipe `Box<dyn FnOnce() + Send + 'static>`. Setiap worker berbagi receiver yang sama menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, lalu terus menunggu job baru dalam loop, mengambil satu job, dan mengeksekusinya.
 
 Keuntungan pendekatan ini dibanding membuat thread baru tanpa batas untuk setiap request adalah jumlah thread tetap terkendali. Request lambat seperti `/sleep` tidak lagi memblokir semua request lain selama masih ada worker yang tersedia, sehingga throughput server meningkat. Refactoring ini juga memisahkan logika concurrency ke `src/lib.rs`, sehingga `main.rs` tetap fokus pada logika web server.
+
+## Commit Bonus Reflection Notes
+
+Pada bonus ini saya menambahkan fungsi `build` sebagai pengganti `new` untuk membuat `ThreadPool`. Perbedaan utamanya adalah `new` biasanya mengandalkan `assert!` dan akan panic jika ukuran pool tidak valid, sedangkan `build` mengembalikan `Result<ThreadPool, ThreadPoolBuildError>`, sehingga kesalahan dapat ditangani secara eksplisit oleh pemanggil.
+
+Saya mengganti pemakaian di `main` menjadi `ThreadPool::build(4).expect(...)`. Dengan pendekatan ini, validasi konfigurasi dipindahkan ke tahap konstruksi yang lebih aman dan lebih idiomatis, karena caller bisa memilih apakah ingin menampilkan pesan error, fallback ke nilai lain, atau menghentikan program dengan alasan yang jelas.
+
+Dibanding `new`, fungsi `build` lebih fleksibel untuk pengembangan selanjutnya. Jika nanti inisialisasi `ThreadPool` membutuhkan validasi tambahan, misalnya batas maksimum ukuran pool atau konfigurasi dari file/env, pola `Result` akan lebih mudah diperluas tanpa memaksa panic. Jadi, `build` lebih cocok untuk API yang ingin robust, sedangkan `new` lebih cocok bila benar-benar ingin konstruktor sederhana yang mengasumsikan input selalu valid.
