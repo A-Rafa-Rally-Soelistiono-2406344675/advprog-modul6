@@ -23,3 +23,11 @@ Pada tahap ini server tidak lagi selalu mengirim `hello.html`. Program sekarang 
 Refactoring dilakukan dengan memisahkan hasil validasi request menjadi dua bagian, yaitu `status_line` dan `filename`. Pemisahan ini dibutuhkan agar keputusan logika tidak bercampur dengan proses membangun response. Dengan begitu, alur program menjadi lebih jelas: pertama tentukan request valid atau tidak, lalu baca file yang sesuai, setelah itu bentuk HTTP response dari data tersebut.
 
 Pendekatan ini memudahkan pengembangan fitur berikutnya karena setiap cabang request cukup menentukan pasangan status dan file yang akan dikirim. Struktur ini juga lebih mudah diperluas dibanding menulis ulang seluruh response string untuk setiap kondisi.
+
+## Commit 4 Reflection Notes
+
+Pada tahap ini ditambahkan rute `GET /sleep HTTP/1.1` yang secara sengaja menunda respons selama 10 detik sebelum mengirim `hello.html`. Tujuannya bukan untuk menambah fitur baru bagi pengguna, tetapi untuk mensimulasikan request lambat agar keterbatasan server single-threaded terlihat jelas.
+
+Ketika satu browser membuka `/sleep`, thread utama akan berhenti di `thread::sleep` dan tidak bisa memproses koneksi lain selama waktu tunggu itu. Akibatnya, request ke `/` dari jendela browser lain juga ikut tertahan walaupun halaman tersebut seharusnya cepat. Ini menunjukkan bahwa pada server single-threaded, satu request lambat dapat memblokir seluruh server.
+
+Dari simulasi ini saya memahami alasan perlunya concurrency pada web server. Jika banyak pengguna mengakses server bersamaan, pendekatan satu thread untuk semua koneksi akan membuat respons terasa lambat dan tidak skalabel, sehingga tahap berikutnya perlu memindahkan penanganan request ke banyak thread atau thread pool.
