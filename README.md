@@ -31,3 +31,11 @@ Pada tahap ini ditambahkan rute `GET /sleep HTTP/1.1` yang secara sengaja menund
 Ketika satu browser membuka `/sleep`, thread utama akan berhenti di `thread::sleep` dan tidak bisa memproses koneksi lain selama waktu tunggu itu. Akibatnya, request ke `/` dari jendela browser lain juga ikut tertahan walaupun halaman tersebut seharusnya cepat. Ini menunjukkan bahwa pada server single-threaded, satu request lambat dapat memblokir seluruh server.
 
 Dari simulasi ini saya memahami alasan perlunya concurrency pada web server. Jika banyak pengguna mengakses server bersamaan, pendekatan satu thread untuk semua koneksi akan membuat respons terasa lambat dan tidak skalabel, sehingga tahap berikutnya perlu memindahkan penanganan request ke banyak thread atau thread pool.
+
+## Commit 5 Reflection Notes
+
+Pada tahap ini server diubah dari single-threaded menjadi multithreaded dengan `ThreadPool`. Di `main`, koneksi yang masuk tidak lagi langsung diproses oleh thread utama, tetapi dibungkus sebagai closure dan dikirim ke pool melalui `pool.execute`. Dengan begitu, thread utama bisa tetap menerima koneksi baru sementara worker thread menangani request secara paralel.
+
+`ThreadPool` bekerja dengan membuat sejumlah worker tetap, dalam tugas ini sebanyak 4 thread. Pool memiliki channel untuk mengirim `Job`, yaitu closure bertipe `Box<dyn FnOnce() + Send + 'static>`. Setiap worker berbagi receiver yang sama menggunakan `Arc<Mutex<mpsc::Receiver<Job>>>`, lalu terus menunggu job baru dalam loop, mengambil satu job, dan mengeksekusinya.
+
+Keuntungan pendekatan ini dibanding membuat thread baru tanpa batas untuk setiap request adalah jumlah thread tetap terkendali. Request lambat seperti `/sleep` tidak lagi memblokir semua request lain selama masih ada worker yang tersedia, sehingga throughput server meningkat. Refactoring ini juga memisahkan logika concurrency ke `src/lib.rs`, sehingga `main.rs` tetap fokus pada logika web server.
